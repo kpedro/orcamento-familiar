@@ -34,6 +34,16 @@ function loadLocal(): Transacao[] {
   }
 }
 
+function mapRemote(remote: { id: unknown; data: unknown; descricao: unknown; valor: unknown; tipo: unknown }[]): Transacao[] {
+  return remote.map((r) => ({
+    id: String(r.id),
+    data: String(r.data),
+    descricao: String(r.descricao),
+    valor: Number(r.valor),
+    tipo: r.tipo === 'receita' ? 'receita' : 'despesa',
+  }))
+}
+
 function App() {
   const [rows, setRows] = useState<Transacao[]>(() => loadLocal())
   const [descricao, setDescricao] = useState('')
@@ -41,7 +51,9 @@ function App() {
   const [tipo, setTipo] = useState<Tipo>('despesa')
   const [data, setData] = useState(todayISO())
   const [saving, setSaving] = useState(false)
+  const [syncing, setSyncing] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [syncNote, setSyncNote] = useState<string | null>(null)
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(rows))
@@ -50,22 +62,54 @@ function App() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
+      setSyncing(true)
+      const local = loadLocal()
       const { data: remote, error: qErr } = await supabase
         .from('orcamento_transacoes')
         .select('id, data, descricao, valor, tipo')
         .order('data', { ascending: false })
-        .limit(50)
+        .limit(100)
 
-      if (cancelled || qErr || !remote?.length) return
-      setRows(
-        remote.map((r) => ({
-          id: String(r.id),
-          data: String(r.data),
-          descricao: String(r.descricao),
-          valor: Number(r.valor),
-          tipo: r.tipo === 'receita' ? 'receita' : 'despesa',
-        })),
-      )
+      if (cancelled) return
+
+      if (qErr) {
+        setError(`Nuvem: ${qErr.message}. A mostrar só o que está neste aparelho.`)
+        setSyncing(false)
+        return
+      }
+
+      if (remote && remote.length > 0) {
+        setRows(mapRemote(remote))
+        setSyncNote('Sincronizado com a nuvem')
+        setSyncing(false)
+        return
+      }
+
+      // Nuvem vazia + dados só neste browser → enviar para o telemóvel ver
+      if (local.length > 0) {
+        const payload = local.map((r) => ({
+          data: r.data,
+          descricao: r.descricao,
+          valor: r.valor,
+          tipo: r.tipo,
+        }))
+        const { error: upErr } = await supabase.from('orcamento_transacoes').insert(payload)
+        if (cancelled) return
+        if (upErr) {
+          setError(`Não consegui enviar para a nuvem: ${upErr.message}`)
+        } else {
+          const { data: again } = await supabase
+            .from('orcamento_transacoes')
+            .select('id, data, descricao, valor, tipo')
+            .order('data', { ascending: false })
+            .limit(100)
+          if (again?.length) setRows(mapRemote(again))
+          setSyncNote('Dados deste PC enviados para a nuvem')
+        }
+      } else {
+        setSyncNote('Sem movimentos na nuvem ainda')
+      }
+      setSyncing(false)
     })()
     return () => {
       cancelled = true
@@ -121,12 +165,26 @@ function App() {
     setTipo('despesa')
     setData(todayISO())
 
-    await supabase.from('orcamento_transacoes').insert({
-      data: draft.data,
-      descricao: draft.descricao,
-      valor: draft.valor,
-      tipo: draft.tipo,
-    })
+    const { data: inserted, error: insErr } = await supabase
+      .from('orcamento_transacoes')
+      .insert({
+        data: draft.data,
+        descricao: draft.descricao,
+        valor: draft.valor,
+        tipo: draft.tipo,
+      })
+      .select('id, data, descricao, valor, tipo')
+      .single()
+
+    if (insErr) {
+      setError(`Guardado neste aparelho, mas não na nuvem: ${insErr.message}`)
+    } else if (inserted) {
+      setRows((prev) => {
+        const withoutDraft = prev.filter((r) => r.id !== draft.id)
+        return [mapRemote([inserted])[0], ...withoutDraft]
+      })
+      setSyncNote('Guardado na nuvem')
+    }
     setSaving(false)
   }
 
@@ -138,6 +196,10 @@ function App() {
         </div>
         <div className="month-chip">{monthLabel}</div>
       </header>
+
+      {(syncing || syncNote) && (
+        <p className="status sync-line">{syncing ? 'A sincronizar…' : syncNote}</p>
+      )}
 
       <section className="summary" aria-label="Resumo do mês">
         <article className="summary-card saldo">
