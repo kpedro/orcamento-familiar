@@ -1,25 +1,21 @@
 :root {
-  --ink: #17221e;
-  --muted: #5c6b64;
-  --paper: #f3f6f2;
-  --paper-2: #e7eee8;
-  --line: #c9d5cd;
+  --ink: #1c2420;
+  --muted: #66756d;
+  --paper: #f7f8f5;
+  --surface: #ffffff;
+  --line: #dde5df;
   --accent: #1f6f54;
-  --accent-soft: #d7efe4;
+  --accent-hover: #185a44;
+  --soft: #e8f3ed;
   --income: #1f6f54;
-  --expense: #a33b2d;
+  --expense: #b04335;
   --danger: #8f2f24;
-  --shadow: 0 18px 40px rgba(23, 34, 30, 0.08);
-  --radius: 18px;
+  --radius: 14px;
   --sans: 'Source Sans 3', system-ui, sans-serif;
-  --display: 'Fraunces', Georgia, serif;
 
   color: var(--ink);
-  background:
-    radial-gradient(1200px 600px at 10% -10%, #dff0e6 0%, transparent 55%),
-    radial-gradient(900px 500px at 100% 0%, #efe8d8 0%, transparent 45%),
-    var(--paper);
-  font: 16px/1.45 var(--sans);
+  background: var(--paper);
+  font: 16px/1.4 var(--sans);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
