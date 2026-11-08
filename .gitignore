@@ -1,8 +1,2 @@
-node_modules/
-dist/
+node_modules
 .env
-.env.local
-.env.*.local
-supabase/.temp/
-.vercel
-.env*
